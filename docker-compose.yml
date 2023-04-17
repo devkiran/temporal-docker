@@ -1,0 +1,152 @@
+version: "3.8"
+
+networks:
+  retraced:
+
+  postgres-temporal:
+    container_name: postgres-temporal
+    image: postgres:14.2
+    ports:
+      - 5432:5432
+    environment:
+      - PGDATA=/var/lib/postgresql/data/pgdata-temporal
+      - POSTGRES_USER=temporal
+      - POSTGRES_PASSWORD=temporal
+      - POSTGRES_DB=temporal
+    networks:
+      - retraced
+    restart: "always"
+
+  temporal-ui:
+    image: temporalio/ui:2.10.3
+    environment:
+      - TEMPORAL_ADDRESS=temporal-frontend:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+    depends_on:
+      - temporal-admin-tools
+      - temporal-worker
+    networks:
+      - retraced
+    ports:
+      - 8080:8080
+
+  temporal-history:
+    image: temporalio/server:latest
+    environment:
+      - DB=postgresql
+      - DBNAME=temporal
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=postgres-temporal
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml
+      - SERVICES=history
+      - BIND_ON_IP=0.0.0.0
+    networks:
+      - retraced
+    ports:
+      - 7234:7234
+      - 8000:8000
+    restart: on-failure
+    volumes:
+      - ./temporal:/etc/temporal/config/dynamicconfig
+      - ./temporal/config_template.yaml:/etc/temporal/config/config_template.yaml
+    depends_on:
+      - temporal-admin-tools
+
+  temporal-matching:
+    image: temporalio/server:latest
+    environment:
+      - DB=postgresql
+      - DBNAME=temporal
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=postgres-temporal
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml
+      - SERVICES=matching
+      - BIND_ON_IP=0.0.0.0
+    networks:
+      - retraced
+    ports:
+      - 7235:7235
+      - 8001:8001
+    restart: on-failure
+    volumes:
+      - ./temporal:/etc/temporal/config/dynamicconfig
+      - ./temporal/config_template.yaml:/etc/temporal/config/config_template.yaml
+
+  temporal-frontend:
+    image: temporalio/server:latest
+    environment:
+      - DB=postgresql
+      - DBNAME=temporal
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=postgres-temporal
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml
+      - SERVICES=frontend
+      - FRONTEND_GRPC_PORT=7235
+      - BIND_ON_IP=0.0.0.0
+    networks:
+      - retraced
+    ports:
+      - 7237:7237
+      - 8002:8002
+    restart: on-failure
+    volumes:
+      - ./temporal:/etc/temporal/config/dynamicconfig
+      - ./temporal/config_template.yaml:/etc/temporal/config/config_template.yaml
+
+  temporal-worker:
+    image: temporalio/server:latest
+    environment:
+      - PUBLIC_FRONTEND_ADDRESS=temporal-frontend:7233
+      - DB=postgresql
+      - DBNAME=temporal
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=postgres-temporal
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml
+      - SERVICES=worker
+      - TEMPORAL_HISTORY_NAMESPACEDEFAULT_ARCHIVAL_FILESTORE=enabled
+      - TEMPORAL_VISIBILITY_NAMESPACEDEFAULT_ARCHIVAL_FILESTORE=enabled
+      - BIND_ON_IP=0.0.0.0
+    networks:
+      - retraced
+    ports:
+      - 7232:7232
+      - 8003:8003
+    restart: on-failure
+    volumes:
+      - ./temporal:/etc/temporal/config/dynamicconfig
+      - ./temporal/config_template.yaml:/etc/temporal/config/config_template.yaml
+    depends_on:
+      - temporal-frontend
+
+  temporal-admin-tools:
+    container_name: temporal-admin-tools
+    image: temporalio/admin-tools:latest
+    environment:
+      - TEMPORAL_CLI_ADDRESS=temporal-frontend:7233
+      - PUBLIC_FRONTEND_ADDRESS=temporal-frontend:7233
+      - DB=postgresql
+      - DBNAME=temporal
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=postgres-temporal
+      - TEMPORAL_HOME=/etc/temporal
+    volumes:
+      - "./temporal/setup.sh:/etc/temporal/setup.sh"
+    entrypoint:
+      - /etc/temporal/setup.sh
+    restart: always
+    stdin_open: true
+    tty: true
+    depends_on:
+      - postgres-temporal
+    networks:
+      - retraced
