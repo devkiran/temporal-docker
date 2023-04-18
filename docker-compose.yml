@@ -22,7 +22,7 @@ networks:
       - retraced
     restart: "always"
 
-  temporal-ui:
+ temporal-ui:
     image: temporalio/ui:2.10.3
     environment:
       - TEMPORAL_ADDRESS=temporal-frontend:7233
@@ -31,14 +31,42 @@ networks:
       - temporal-admin-tools
       - temporal-worker
     networks:
-      - retraced
+      retraced:
+        ipv4_address: "10.1.0.21"
     ports:
       - 8080:8080
+
+  # temporal-workers:
+  #   build:
+  #     context: .
+  #     dockerfile: ./temporal/Dockerfile
+  #   environment: *common-variables
+  #   networks:
+  #     - retraced
+  #   depends_on:
+  #     temporal-history:
+  #       condition: service_started
+  #   restart: "always"
+  #   command: node build/src/_processor/temporal/workers/index.js
+  #   deploy:
+  #     replicas: 10
+
+  # temporal-scheduler:
+  #   build:
+  #     context: .
+  #     dockerfile: ./temporal/Dockerfile
+  #   environment: *common-variables
+  #   networks:
+  #     - retraced
+  #   depends_on:
+  #     temporal-history:
+  #       condition: service_started
+  #   command: node build/src/_processor/temporal/schedule/start.js
 
   temporal-history:
     image: temporalio/server:latest
     environment:
-      - DB=postgresql
+      - DB=postgres
       - DBNAME=temporal
       - DB_PORT=5432
       - POSTGRES_USER=temporal
@@ -46,9 +74,10 @@ networks:
       - POSTGRES_SEEDS=postgres-temporal
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml
       - SERVICES=history
-      - BIND_ON_IP=0.0.0.0
+      - TEMPORAL_BROADCAST_ADDRESS=10.1.0.22
     networks:
-      - retraced
+      retraced:
+        ipv4_address: "10.1.0.22"
     ports:
       - 7234:7234
       - 8000:8000
@@ -60,19 +89,22 @@ networks:
       - temporal-admin-tools
 
   temporal-matching:
-    image: temporalio/server:latest
+    image: temporalio/server:${TEMPORAL_SERVER_IMG}
     environment:
-      - DB=postgresql
+      - DB=postgres
       - DBNAME=temporal
       - DB_PORT=5432
       - POSTGRES_USER=temporal
       - POSTGRES_PWD=temporal
       - POSTGRES_SEEDS=postgres-temporal
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml
+      - TEMPORAL_HISTORY_NAMESPACEDEFAULT_ARCHIVAL_FILESTORE=enabled
+      - TEMPORAL_VISIBILITY_NAMESPACEDEFAULT_ARCHIVAL_FILESTORE=enabled
       - SERVICES=matching
-      - BIND_ON_IP=0.0.0.0
+      - TEMPORAL_BROADCAST_ADDRESS=10.1.0.23
     networks:
-      - retraced
+      retraced:
+        ipv4_address: "10.1.0.23"
     ports:
       - 7235:7235
       - 8001:8001
@@ -82,9 +114,9 @@ networks:
       - ./temporal/config_template.yaml:/etc/temporal/config/config_template.yaml
 
   temporal-frontend:
-    image: temporalio/server:latest
+    image: temporalio/server:${TEMPORAL_SERVER_IMG}
     environment:
-      - DB=postgresql
+      - DB=postgres
       - DBNAME=temporal
       - DB_PORT=5432
       - POSTGRES_USER=temporal
@@ -92,9 +124,10 @@ networks:
       - POSTGRES_SEEDS=postgres-temporal
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml
       - SERVICES=frontend
-      - BIND_ON_IP=0.0.0.0
+      - TEMPORAL_BROADCAST_ADDRESS=10.1.0.24
     networks:
-      - retraced
+      retraced:
+        ipv4_address: "10.1.0.24"
     ports:
       - 8002:8002
       - 7233:7233
@@ -104,10 +137,10 @@ networks:
       - ./temporal/config_template.yaml:/etc/temporal/config/config_template.yaml
 
   temporal-worker:
-    image: temporalio/server:latest
+    image: temporalio/server:${TEMPORAL_SERVER_IMG}
     environment:
       - PUBLIC_FRONTEND_ADDRESS=temporal-frontend:7233
-      - DB=postgresql
+      - DB=postgres
       - DBNAME=temporal
       - DB_PORT=5432
       - POSTGRES_USER=temporal
@@ -117,9 +150,10 @@ networks:
       - SERVICES=worker
       - TEMPORAL_HISTORY_NAMESPACEDEFAULT_ARCHIVAL_FILESTORE=enabled
       - TEMPORAL_VISIBILITY_NAMESPACEDEFAULT_ARCHIVAL_FILESTORE=enabled
-      - BIND_ON_IP=0.0.0.0
+      - TEMPORAL_BROADCAST_ADDRESS=10.1.0.25
     networks:
-      - retraced
+      retraced:
+        ipv4_address: "10.1.0.25"
     ports:
       - 7232:7232
       - 8003:8003
@@ -132,11 +166,11 @@ networks:
 
   temporal-admin-tools:
     container_name: temporal-admin-tools
-    image: temporalio/admin-tools:latest
+    image: temporalio/admin-tools:${TEMPORAL_SERVER_IMG}
     environment:
       - TEMPORAL_CLI_ADDRESS=temporal-frontend:7233
       - PUBLIC_FRONTEND_ADDRESS=temporal-frontend:7233
-      - DB=postgresql
+      - DB=postgres
       - DBNAME=temporal
       - DB_PORT=5432
       - POSTGRES_USER=temporal
@@ -153,4 +187,5 @@ networks:
     depends_on:
       - postgres-temporal
     networks:
-      - retraced
+      retraced:
+        ipv4_address: "10.1.0.26"
