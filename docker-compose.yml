@@ -87,13 +87,12 @@ networks:
       - POSTGRES_SEEDS=postgres-temporal
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml
       - SERVICES=frontend
-      - FRONTEND_GRPC_PORT=7235
       - BIND_ON_IP=0.0.0.0
     networks:
       - retraced
     ports:
-      - 7237:7237
       - 8002:8002
+      - 7233:7233
     restart: on-failure
     volumes:
       - ./temporal:/etc/temporal/config/dynamicconfig
